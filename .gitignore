@@ -1,9 +1,2 @@
-
-__pycache__/
-*.pyc
-*.pyo
-
-.venv/
-venv/
-
-labs/lab01/data/
+# Created by venv; see https://docs.python.org/3/library/venv.html
+*
