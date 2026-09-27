@@ -1,2 +1,22 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-*
+# Віртуальне середовище
+venv/
+.venv/
+env/
+
+# Кеш Python і компільовані файли
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Файли зі змінними оточення та секретами
+.env
+.env.local
+
+# Налаштування редакторів та IDE
+.vscode/
+.idea/
+*.swp
+
+# Системні файли
+.DS_Store
+Thumbs.db

@@ -4,7 +4,6 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 from shared.student import VARIANT_NUMBER
 
-# Налаштування Варіанту 5[cite: 1]
 USERS = {
     "sec_admin": {
         "role": "admin",
