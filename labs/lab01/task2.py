@@ -36,7 +36,7 @@ BLOCKED_USERS = {"intern_m", "blacklisted_user"}
 
 
 def check_access(
-    username: str, resource_name: str, resource_level: int
+    username: str, _resource_name: str, resource_level: int
 ) -> tuple[str, str]:
     """Перевіряє доступ за політикою безпеки[cite: 1]."""
     if username not in USERS:

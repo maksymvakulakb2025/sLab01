@@ -106,5 +106,83 @@
         "user": "user_v5_1",
         "result": "success",
         "timestamp": "2026-09-22 19:14:37"
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "success",
+        "timestamp": "2026-09-27 19:00:28"
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "success",
+        "timestamp": "2026-09-28 05:38:47"
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "success",
+        "timestamp": "2026-09-28 05:58:45",
+        "args": [
+            "user_v5_1",
+            "SecurePass5!_LongSecret_1"
+        ],
+        "kwargs": {}
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "failure",
+        "timestamp": "2026-09-28 05:58:45",
+        "args": [
+            "user_v5_1",
+            "WrongPassword123456789"
+        ],
+        "kwargs": {}
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "success",
+        "timestamp": "2026-09-28 06:16:08",
+        "args": [
+            "user_v5_1",
+            "SecurePass5!_LongSecret_1"
+        ],
+        "kwargs": {}
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "failure",
+        "timestamp": "2026-09-28 06:16:08",
+        "args": [
+            "user_v5_1",
+            "WrongPassword123456789"
+        ],
+        "kwargs": {}
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "success",
+        "timestamp": "2026-09-28 06:16:11",
+        "args": [
+            "user_v5_1",
+            "SecurePass5!_LongSecret_1"
+        ],
+        "kwargs": {}
+    },
+    {
+        "event": "login",
+        "user": "user_v5_1",
+        "result": "failure",
+        "timestamp": "2026-09-28 06:16:11",
+        "args": [
+            "user_v5_1",
+            "WrongPassword123456789"
+        ],
+        "kwargs": {}
     }
 ]
