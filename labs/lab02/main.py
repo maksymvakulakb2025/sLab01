@@ -1,99 +1,147 @@
+"""Точка входу ЛР №2: команди demo (Завдання 1) та analyze (Завдання 2)."""
+
 import argparse
 import logging
+import sys
+from datetime import timedelta
 from pathlib import Path
 
-from labs.lab02.task1 import Admin, User, UserAccount
-from labs.lab02.task2 import run_availability_scan
+from labs.lab02.task1 import SESSION_TIMEOUT_SEC, Admin, User, UserAccount
+from labs.lab02.task2 import ScanInputError, run_availability_scan
+
+logger = logging.getLogger(__name__)
+
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
-def run_demo():
+def default_targets_path() -> Path:
+    """Шукає targets.json у data/data_v05/, а потім у data/."""
+    for candidate in (
+        DATA_DIR / "data_v05" / "targets.json",
+        DATA_DIR / "targets.json",
+    ):
+        if candidate.exists():
+            return candidate
+    return DATA_DIR / "data_v05" / "targets.json"
+
+
+def run_demo() -> None:
     print("=== ДЕМОНСТРАЦІЯ ЗАВДАННЯ 1 (ООП) ===")
 
-    user = User(username="j_doe", email="john.doe@example.com", role="user")
+    user = User(username="j_doe", email="john_doe@example.com", role="user")
     user.set_password("SecurePass123!")
-
     admin = Admin(
         username="sys_admin",
-        email="admin.root@example.com",
+        email="admin_root@example.com",
         permissions=["read", "write", "execute"],
     )
     admin.set_password("RootAdmin2026!")
-
     account = UserAccount(user=user)
+    print(user)
 
-    print("\n1. Перевірка аутентифікації:")
-    print("Невдалий вхід:", account.login("j_doe", "WrongPass", "192.168.1.10"))
-    print("Статус авторизації:", account.is_authenticated())
+    print("\n1. Вхід:")
+    print("Невдалий вхід (хибний пароль):", account.login("j_doe", "Wrong", "10.0.0.5"))
+    print("Автентифіковано:", account.is_authenticated())
+    print("Успішний вхід:", account.login("j_doe", "SecurePass123!", "10.0.0.5"))
+    print("Автентифіковано:", account.is_authenticated())
 
-    print("Успішний вхід:", account.login("j_doe", "SecurePass123!", "192.168.1.10"))
-    print("Статус авторизації:", account.is_authenticated())
+    print("\n2. Зміна email із валідацією:")
+    user.email = "new_mail@example.com"
+    print("Email змінено на:", user.email)
+    for bad in ("invalid-email-format", "a.b@example.com", "ab@example.com"):
+        try:
+            user.email = bad
+        except ValueError as e:
+            print("Відхилено:", e)
 
-    print("\n2. Перевірка валідації email:")
-    try:
-        user.email = "invalid-email-format"
-    except ValueError as e:
-        print("Впіймано очікувану помилку:", e)
-
-    print("\n3. Перевірка прав адміністратора:")
+    print("\n3. Права адміністратора:")
     print(admin)
-    print("Чи є право 'delete'?:", admin.has_permission("delete"))
+    print("Чи є право 'delete'?", admin.has_permission("delete"))
     admin.grant_permission("delete")
-    print("Після надання 'delete':", admin.has_permission("delete"))
+    print("Після grant 'delete':", admin.has_permission("delete"))
+    admin.revoke_permission("write")
+    print(admin)
 
-    print("\n4. Журнал аудиту (AuditLog):")
-    account.logout()
-    for record in account["audit_log"].show_all():
-        print(
-            f"[{record.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}] {record.username} -> {record.action}"
-        )
+    print("\n4. Захист доступу через ключі:")
+    try:
+        account["password_hash"]
+    except KeyError as e:
+        print("KeyError:", e)
+    try:
+        account["user"] = "not a user"
+    except TypeError as e:
+        print("TypeError:", e)
 
-
-def main():
-    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-
-    parser = argparse.ArgumentParser(description="Лабораторна робота №2 CLI Utility")
-    subparsers = parser.add_subparsers(dest="command", help="Доступні команди")
-
-    subparsers.add_parser("demo", help="Запустити демонстрацію Завдання 1")
-
-    analyze_parser = subparsers.add_parser(
-        "analyze", help="Запустити сканер доступності сервісів"
+    print("\n5. Завершення сеансу за таймаутом:")
+    print("Автентифіковано:", account.is_authenticated())
+    account.session.last_activity -= timedelta(seconds=SESSION_TIMEOUT_SEC + 1)
+    print(
+        f"Після {SESSION_TIMEOUT_SEC + 1} с неактивності:", account.is_authenticated()
     )
-    analyze_parser.add_argument(
+
+    print("\n6. Вихід із системи:")
+    account.login("j_doe", "SecurePass123!", "10.0.0.5")
+    account.logout()
+    print("Автентифіковано після logout:", account.is_authenticated())
+
+    print("\n7. Журнал аудиту (AuditLog):")
+    for rec in account["audit_log"].show_all():
+        stamp = rec.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
+        print(f"[{stamp}] {rec.username} -> {rec.action}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Лабораторна робота №2")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("demo", help="Демонстрація Завдання 1 (ООП)")
+
+    analyze = sub.add_parser("analyze", help="Сканер доступності сервісів (варіант 5)")
+    analyze.add_argument(
         "--targets",
         type=Path,
-        default=Path("labs/lab02/data/targets.json"),
-        help="Шлях до JSON файлу з цілями",
+        default=default_targets_path(),
+        help="JSON/CSV-файл із цілями (host, port, service)",
     )
-    analyze_parser.add_argument(
+    analyze.add_argument(
         "--timeout",
         type=float,
         default=2.0,
-        help="Таймаут підключення в секундах",
+        help="таймаут з'єднання, секунди (за замовчуванням 2.0)",
     )
-    analyze_parser.add_argument(
+    analyze.add_argument(
         "--out-csv",
         type=Path,
-        default=Path("labs/lab02/data/scan_results.csv"),
-        help="Шлях для вивантаження CSV звіту",
+        default=DATA_DIR / "scan_results.csv",
+        help="шлях до CSV-звіту",
     )
-    analyze_parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Детальний режим логування",
+    analyze.add_argument(
+        "--verbose", action="store_true", help="детальне логування (DEBUG)"
     )
+    return parser
 
-    args = parser.parse_args()
+
+def main() -> int:
+    args = build_parser().parse_args()
+    logging.basicConfig(
+        level=logging.DEBUG if getattr(args, "verbose", False) else logging.INFO,
+        format="[%(levelname)s] %(message)s",
+    )
 
     if args.command == "demo":
         run_demo()
-    elif args.command == "analyze":
-        if args.verbose:
-            logging.getLogger().setLevel(logging.DEBUG)
-        run_availability_scan(args.targets, args.timeout, args.out_csv, args.verbose)
-    else:
-        parser.print_help()
+        return 0
+
+    if args.timeout <= 0:
+        logger.error("--timeout must be positive")
+        return 2
+    try:
+        run_availability_scan(args.targets, args.timeout, args.out_csv)
+    except ScanInputError as e:
+        logger.error("%s", e)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

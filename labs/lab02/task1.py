@@ -1,3 +1,5 @@
+"""Завдання 1: модель користувача, безпечних сесій та журналу аудиту."""
+
 import hashlib
 import hmac
 import os
@@ -5,13 +7,28 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+PBKDF2_ITERATIONS = 600_000
+SALT_SIZE = 16
+SESSION_TIMEOUT_SEC = 900
+
+# Локальна частина: літера + 2-63 символи (літери, цифри, _), тобто 3-64 разом.
+# Домен: щонайменше одна крапка.
+EMAIL_PATTERN = re.compile(
+    r"[A-Za-z][A-Za-z0-9_]{2,63}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"
+)
+
+
+def utc_now() -> datetime:
+    """Поточний час UTC з часовим поясом."""
+    return datetime.now(timezone.utc)
+
 
 class User:
-    ITERATIONS = 100_000
+    """Користувач із безпечним зберіганням пароля (PBKDF2 + сіль)."""
 
     def __init__(self, username: str, email: str, role: str, active: bool = True):
         self.username = username
-        self.email = email
+        self.email = email  # проходить через setter із валідацією
         self.role = role
         self.active = active
         self.__password_salt: bytes = b""
@@ -23,30 +40,27 @@ class User:
 
     @email.setter
     def email(self, value: str) -> None:
-        pattern = r"^[a-zA-Z][a-zA-Z0-9._%+-]{2,63}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-        if not re.match(pattern, value):
-            raise ValueError(f"Некоректний формат email: {value}")
+        if not isinstance(value, str) or not EMAIL_PATTERN.fullmatch(value):
+            raise ValueError(f"Некоректний формат email: {value!r}")
         self._email = value
 
-    def set_password(self, password: str) -> None:
-        self.__password_salt = os.urandom(16)
-        self.__password_hash = hashlib.pbkdf2_hmac(
-            "sha256",
-            password.encode("utf-8"),
-            self.__password_salt,
-            self.ITERATIONS,
+    @staticmethod
+    def _derive_key(password: str, salt: bytes) -> bytes:
+        return hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS
         )
 
+    def set_password(self, password: str) -> None:
+        if not isinstance(password, str) or not password:
+            raise ValueError("Пароль повинен бути непорожнім рядком")
+        self.__password_salt = os.urandom(SALT_SIZE)
+        self.__password_hash = self._derive_key(password, self.__password_salt)
+
     def check_password(self, password: str) -> bool:
-        if not self.__password_hash or not self.__password_salt:
+        if not self.__password_hash or not isinstance(password, str):
             return False
-        computed_hash = hashlib.pbkdf2_hmac(
-            "sha256",
-            password.encode("utf-8"),
-            self.__password_salt,
-            self.ITERATIONS,
-        )
-        return hmac.compare_digest(self.__password_hash, computed_hash)
+        candidate = self._derive_key(password, self.__password_salt)
+        return hmac.compare_digest(self.__password_hash, candidate)
 
     def deactivate(self) -> None:
         self.active = False
@@ -59,6 +73,8 @@ class User:
 
 
 class Admin(User):
+    """Адміністратор: користувач із набором дозволів."""
+
     def __init__(
         self,
         username: str,
@@ -67,7 +83,7 @@ class Admin(User):
         active: bool = True,
     ):
         super().__init__(username, email, role="admin", active=active)
-        self.permissions = set(permissions) if permissions else set()
+        self.permissions: set[str] = set(permissions) if permissions else set()
 
     def grant_permission(self, permission: str) -> None:
         self.permissions.add(permission)
@@ -79,53 +95,52 @@ class Admin(User):
         return permission in self.permissions
 
     def __str__(self) -> str:
-        base_str = super().__str__()
-        perms = ", ".join(sorted(self.permissions)) if self.permissions else "None"
-        return f"{base_str} | Permissions: [{perms}]"
+        perms = ", ".join(sorted(self.permissions)) if self.permissions else "none"
+        return f"{super().__str__()} | Permissions: [{perms}]"
 
 
 class Session:
+    """Сеанс користувача з відстеженням останньої активності (UTC)."""
+
     def __init__(self, ip: str):
         self.ip = ip
-        now = datetime.now(timezone.utc)
-        self.login_time = now
-        self.last_activity = now
+        now = utc_now()
+        self.login_time: datetime = now
+        self.last_activity: datetime = now
 
     def touch(self) -> None:
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = utc_now()
 
     def is_active(self, timeout_sec: int) -> bool:
         if timeout_sec <= 0:
             raise ValueError("timeout_sec повинен бути додатним числом")
-        now = datetime.now(timezone.utc)
-        return (now - self.last_activity) <= timedelta(seconds=timeout_sec)
+        return utc_now() - self.last_activity <= timedelta(seconds=timeout_sec)
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuditRecord:
+    """Один запис журналу аудиту (незмінний)."""
+
     timestamp: datetime
     username: str
     action: str
 
 
 class AuditLog:
+    """Журнал подій безпеки. Паролі в журнал не потрапляють."""
+
     def __init__(self):
-        self.logs: list[AuditRecord] = []
+        self._records: list[AuditRecord] = []
 
     def add_log(self, username: str, action: str) -> None:
-        record = AuditRecord(
-            timestamp=datetime.now(timezone.utc),
-            username=username,
-            action=action,
-        )
-        self.logs.append(record)
+        self._records.append(AuditRecord(utc_now(), username, action))
 
     def show_all(self) -> list[AuditRecord]:
-        return self.logs
+        return list(self._records)
 
 
 class UserAccount:
-    SESSION_TIMEOUT_SEC = 900
+    """Композиція: User + Session + AuditLog."""
 
     def __init__(
         self,
@@ -138,55 +153,51 @@ class UserAccount:
         self.audit_log = audit_log if audit_log is not None else AuditLog()
 
     def login(self, username: str, password: str, ip: str) -> bool:
-        if self.user.username != username or not self.user.active:
-            self.audit_log.add_log(username, "login_failure")
-            return False
-
-        if self.user.check_password(password):
+        if (
+            username == self.user.username
+            and self.user.active
+            and self.user.check_password(password)
+        ):
             self.session = Session(ip)
             self.session.touch()
             self.audit_log.add_log(username, "login_success")
             return True
-
         self.audit_log.add_log(username, "login_failure")
         return False
 
     def is_authenticated(self) -> bool:
+        """Перевірка не продовжує сеанс."""
         if self.session is None:
             return False
-        return self.session.is_active(self.SESSION_TIMEOUT_SEC)
+        return self.session.is_active(SESSION_TIMEOUT_SEC)
 
     def logout(self) -> None:
-        if self.user:
+        if self.session is not None:
             self.audit_log.add_log(self.user.username, "logout")
         self.session = None
 
     def __getitem__(self, key: str):
-        allowed = {
-            "user": self.user,
-            "session": self.session,
-            "audit_log": self.audit_log,
-        }
-        if key in allowed:
-            return allowed[key]
-        raise KeyError(f"Ключ '{key}' не знайдено або доступ до нього заборонено.")
+        if key == "user":
+            return self.user
+        if key == "session":
+            return self.session
+        if key == "audit_log":
+            return self.audit_log
+        raise KeyError(f"Ключ {key!r} невідомий або недоступний")
 
-    def __setitem__(self, key: str, value):
+    def __setitem__(self, key: str, value) -> None:
         if key == "user":
             if not isinstance(value, User):
-                raise TypeError("Значення для 'user' повинно бути екземпляром User")
+                raise TypeError("Значення для 'user' повинно бути User")
             self.user = value
+            self.session = None  # сеанс попереднього користувача недійсний
         elif key == "session":
             if value is not None and not isinstance(value, Session):
-                raise TypeError(
-                    "Значення для 'session' повинно бути екземпляром Session"
-                )
+                raise TypeError("Значення для 'session' повинно бути Session")
             self.session = value
         elif key == "audit_log":
             if not isinstance(value, AuditLog):
-                raise TypeError(
-                    "Значення для 'audit_log' повинно бути екземпляром AuditLog"
-                )
+                raise TypeError("Значення для 'audit_log' повинно бути AuditLog")
             self.audit_log = value
         else:
-            raise KeyError(f"Ключ '{key}' не підтримується для запису.")
+            raise KeyError(f"Ключ {key!r} невідомий або недоступний")
