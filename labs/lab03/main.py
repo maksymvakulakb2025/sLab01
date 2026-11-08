@@ -1,40 +1,57 @@
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+"""Головний файл FastAPI-додатку."""
 
-from .database import init_db
-from .seed import seed_data
-from .config import STUDENT_NAME, GROUP, VARIANT
-from .routers import categories, records
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from labs.lab03 import config, database, repository
+from labs.lab03.routers import categories, records
+from labs.lab03.schemas import StudentRead
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Цей код виконується при запуску сервера
-    init_db()
-    seed_data()
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Ініціалізація бази даних при запуску додатку."""
+    database.initialize_database()
     yield
-    # Тут можна додати код для коректного закриття з'єднань при зупинці сервера
+
 
 app = FastAPI(
-    title="Lab 3 API: Облік спрацювань засобів захисту",
-    description=f"Лабораторна робота №3. Виконав: {STUDENT_NAME}, група {GROUP}, Варіант {VARIANT}",
+    title=f"Lab 3 - {config.DOMAIN_NAME}",
+    description=config.DOMAIN_DESCRIPTION,
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# Підключаємо наші роутери з тегами для красивої документації
+# Підключаємо наші маршрути
 app.include_router(categories.router)
 app.include_router(records.router)
 
-@app.get("/ping", tags=["System"])
-def ping():
-    """Перевірка статусу сервера."""
-    return {"status": "ok", "message": "Server is running"}
 
-@app.get("/student", tags=["System"])
-def get_student_info():
-    """Інформація про виконавця."""
+@app.exception_handler(repository.NotFoundError)
+async def not_found_handler(request: Request, exc: repository.NotFoundError) -> JSONResponse:
+    """Обробка помилки 'Не знайдено' (404)."""
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(repository.ConflictError)
+async def conflict_handler(request: Request, exc: repository.ConflictError) -> JSONResponse:
+    """Обробка помилки 'Конфлікт унікальності або зв'язків' (409)."""
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+@app.get(
+    "/student",
+    response_model=StudentRead,
+    summary="Дані студента",
+    tags=["student"],
+)
+def get_student() -> dict:
+    """Повернути інформацію про автора роботи."""
     return {
-        "student": STUDENT_NAME,
-        "group": GROUP,
-        "variant": VARIANT
+        "student_name": "Вакула Максим",
+        "group_name": "КБ-207",
+        "variant_number": 5,
     }

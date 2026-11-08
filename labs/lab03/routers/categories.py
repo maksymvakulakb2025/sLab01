@@ -1,34 +1,49 @@
-import sqlite3
-from fastapi import APIRouter, Depends, HTTPException, status
-from ..database import get_db_connection
-from ..schemas import CategoryCreate, CategoryRead
-from ..repository import get_categories, get_category_by_id, create_category
+"""Маршрути для категорій."""
 
-router = APIRouter(prefix="/categories", tags=["Categories"])
+from typing import Annotated
 
-def get_db():
-    conn = get_db_connection()
-    try:
-        yield conn
-    finally:
-        conn.close()
+from fastapi import APIRouter, Path, Response, status
 
-@router.get("", response_model=list[CategoryRead])
-def read_categories(conn: sqlite3.Connection = Depends(get_db)):
-    return [dict(row) for row in get_categories(conn)]
+from labs.lab03 import repository
+from labs.lab03.schemas import CategoryCreate, CategoryRead, ErrorResponse
 
-@router.get("/{category_id}", response_model=CategoryRead)
-def read_category(category_id: int, conn: sqlite3.Connection = Depends(get_db)):
-    cat = get_category_by_id(conn, category_id)
-    if not cat:
-        raise HTTPException(status_code=404, detail="Category not found")
-    return dict(cat)
+router = APIRouter(prefix="/categories", tags=["categories"])
 
-@router.post("", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
-def create_new_category(category: CategoryCreate, conn: sqlite3.Connection = Depends(get_db)):
-    try:
-        cat_id = create_category(conn, category.name)
-        conn.commit()
-        return {**category.model_dump(), "id": cat_id}
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=409, detail="Category with this name already exists")
+
+@router.get(
+    "",
+    response_model=list[CategoryRead],
+    summary="Список категорій",
+)
+def list_categories() -> list[dict]:
+    """Повернути всі категорії за зростанням id."""
+    return repository.list_categories()
+
+
+@router.post(
+    "",
+    response_model=CategoryRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Створити категорію",
+    responses={409: {"model": ErrorResponse, "description": "Назва вже існує"}},
+)
+def create_category(payload: CategoryCreate) -> dict:
+    """Створити нову категорію."""
+    return repository.create_category(payload.name)
+
+
+@router.delete(
+    "/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Видалити порожню категорію",
+    responses={
+        404: {"model": ErrorResponse, "description": "Категорію не знайдено"},
+        409: {"model": ErrorResponse, "description": "Категорія містить записи"},
+    },
+)
+def delete_category(
+    category_id: Annotated[int, Path(gt=0, description="Ідентифікатор категорії")],
+) -> Response:
+    """Видалити категорію, якщо в ній немає записів."""
+    repository.delete_category(category_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

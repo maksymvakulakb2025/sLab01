@@ -1,12 +1,13 @@
-from pathlib import Path
+"""Налаштування предметної області та обмежень варіанта."""
 
-# Дані студента
-STUDENT_NAME = "Вакула Максим"
-GROUP = "КБ-207"
-VARIANT = 5
-
-# Шляхи до файлів
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-DB_PATH = DATA_DIR / "lab03.db"
-SEED_FILE = DATA_DIR / "seed.json"
+VARIANT_NUMBER = 5
+DOMAIN_NAME = "Облік спрацювань засобів захисту"
+DOMAIN_DESCRIPTION = (
+    "Сервіс збереження кількості спрацювань засобів захисту за навчальні інтервали. "
+    "Категорія визначає джерело спрацювання, value — кількість подій "
+    "(одиниця: events, ціле число >= 0), status — стан перевірки підсумкового запису."
+)
+UNIT = "events"
+THRESHOLD = 15
+VALUE_MIN = 0
+VALUE_MAX = None

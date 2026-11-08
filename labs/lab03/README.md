@@ -18,3 +18,6 @@ REST API сервіс для обліку спрацювань засобів з
 2. Встановіть залежності (якщо ще не встановлені):
    ```bash
    pip install -r requirements.txt
+2. Встановіть залежності (якщо ще не встановлені):
+   ```bash
+   pip install -r requirements.txt
