@@ -2,8 +2,11 @@
 
 import sqlite3
 from contextlib import closing
+from pathlib import Path
 
-from labs.lab03.config import DATABASE_PATH, SCHEMA_PATH
+BASE_DIR = Path(__file__).resolve().parent
+DATABASE_PATH = BASE_DIR / "data" / "lab3.sqlite3"
+SCHEMA_PATH = BASE_DIR / "schema.sql"
 
 
 def get_connection() -> sqlite3.Connection:

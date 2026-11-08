@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 RecordStatus = Literal["new", "in_progress", "done"]
 
-# Варіант 5 (int, >= 0):
+# Варіант 5: value — кількість подій, ціле число не менше 0.
 Value = Annotated[int, Field(strict=True, ge=0)]
 
 
