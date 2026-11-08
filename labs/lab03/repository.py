@@ -31,9 +31,7 @@ def create_category(name: str) -> dict[str, Any]:
     """Створити нову категорію."""
     with get_connection() as conn:
         try:
-            cursor = conn.execute(
-                "INSERT INTO categories (name) VALUES (?)", (name,)
-            )
+            cursor = conn.execute("INSERT INTO categories (name) VALUES (?)", (name,))
             conn.commit()
             return {"id": cursor.lastrowid, "name": name}
         except sqlite3.IntegrityError as err:
@@ -160,9 +158,7 @@ def create_record(data: dict[str, Any]) -> dict[str, Any]:
                 raise NotFoundError(
                     f"Категорію з id={data['category_id']} не знайдено."
                 ) from err
-            raise ConflictError(
-                f"Запис із кодом '{data['code']}' вже існує."
-            ) from err
+            raise ConflictError(f"Запис із кодом '{data['code']}' вже існує.") from err
 
     return get_record(record_id)
 
@@ -235,9 +231,7 @@ def replace_record(record_id: int, data: dict[str, Any]) -> dict[str, Any]:
                 raise NotFoundError(
                     f"Категорію з id={data['category_id']} не знайдено."
                 ) from err
-            raise ConflictError(
-                f"Запис із кодом '{data['code']}' вже існує."
-            ) from err
+            raise ConflictError(f"Запис із кодом '{data['code']}' вже існує.") from err
 
     return get_record(record_id)
 

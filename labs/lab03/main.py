@@ -1,7 +1,7 @@
 """Головний файл FastAPI-додатку."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -31,13 +31,17 @@ app.include_router(records.router)
 
 
 @app.exception_handler(repository.NotFoundError)
-async def not_found_handler(request: Request, exc: repository.NotFoundError) -> JSONResponse:
+async def not_found_handler(
+    request: Request, exc: repository.NotFoundError
+) -> JSONResponse:
     """Обробка помилки 'Не знайдено' (404)."""
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
 @app.exception_handler(repository.ConflictError)
-async def conflict_handler(request: Request, exc: repository.ConflictError) -> JSONResponse:
+async def conflict_handler(
+    request: Request, exc: repository.ConflictError
+) -> JSONResponse:
     """Обробка помилки 'Конфлікт унікальності або зв'язків' (409)."""
     return JSONResponse(status_code=409, content={"detail": str(exc)})
 
